@@ -41,6 +41,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .tile .x.confirm{background:var(--bad);width:auto;padding:0 10px;font-size:13px}
 .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px}
 progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;z-index:10}
+.lb .top{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;color:#fff;font-size:13px}
+.lb .top button{background:rgba(255,255,255,.15);color:#fff;padding:8px 12px}
+.lb .body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.lb img,.lb video{max-width:100%;max-height:100%;object-fit:contain}
+.lb .foot{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px));color:#ccc;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.lb .foot button{background:var(--bad);color:#fff;padding:8px 12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -70,6 +77,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
   <div id="log"></div>
   <div class="head"><h2>队列</h2><span class="count" id="count"></span></div>
   <div class="grid" id="grid"></div>
+  <div class="lb" id="lb" hidden><div class="top"><span id="lb-title"></span><button id="lb-close">关闭</button></div><div class="body" id="lb-body"></div><div class="foot"><span id="lb-info"></span><button id="lb-del">删除这条</button></div></div>
   <div class="empty" id="empty" hidden>队列为空，早报会用图库兜底</div>
   <div class="row" style="margin-top:14px"><button class="ghost" id="reload">刷新</button><button class="ghost" id="logout">换令牌</button></div>
 </section>
@@ -217,10 +225,41 @@ async function refresh(){
           log("已删除 "+f.name,"ok");refresh();
         }catch(e){log(e.message,"bad");x.disabled=false}
       };
-      t.appendChild(x);g.appendChild(t);
+      t.appendChild(x);
+      t.onclick=ev=>{if(ev.target.tagName==="BUTTON")return;openLightbox(f,i)};
+      g.appendChild(t);
     });
   }catch(e){log(e.message,"bad")}
 }
+let lbUrl=null;
+async function openLightbox(f,i){
+  const lb=$("lb"),body=$("lb-body");body.innerHTML="";lb.hidden=false;
+  $("lb-title").textContent=(i===0?"下一条 · ":"第 "+(i+1)+" 条 · ")+(f.kind==="video"?"视频":"图片");
+  $("lb-info").textContent=f.name+(f.size?" · "+fmtMB(f.size):"");
+  if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}
+  const acc=f.kind==="video"||f.url.includes("/releases/assets/")?"application/octet-stream":"application/vnd.github.raw";
+  const ph=document.createElement("div");ph.style.color="#ccc";ph.textContent="加载中…";body.appendChild(ph);
+  try{
+    const r=await fetch(f.url,{headers:headers({"Accept":acc})});if(!r.ok)throw new Error("读取失败 "+r.status);
+    lbUrl=URL.createObjectURL(await r.blob());body.innerHTML="";
+    if(f.kind==="video"){const v=document.createElement("video");v.src=lbUrl;v.controls=true;v.playsInline=true;v.autoplay=true;if(f.cover){/* poster via blob */}body.appendChild(v)}
+    else{const im=document.createElement("img");im.src=lbUrl;body.appendChild(im)}
+  }catch(e){ph.textContent=e.message}
+  $("lb-del").onclick=async()=>{
+    if(!confirmDel){confirmDel=true;$("lb-del").textContent="再点一次确认删除";setTimeout(()=>{confirmDel=false;$("lb-del").textContent="删除这条"},3000);return}
+    confirmDel=false;
+    try{
+      if(f.kind==="video"&&f.cover){await fetch(f.cover.url,{method:"DELETE",headers:headers()})}
+      const r=f.kind==="video"?await fetch(f.url,{method:"DELETE",headers:headers()})
+        :await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
+      if(!r.ok&&r.status!==204)throw new Error("删除失败 "+r.status);
+      closeLightbox();log("已删除 "+f.name,"ok");refresh();
+    }catch(e){$("lb-info").textContent=e.message}
+  };
+}
+let confirmDel=false;
+function closeLightbox(){$("lb").hidden=true;$("lb-body").innerHTML="";if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null};confirmDel=false;$("lb-del").textContent="删除这条"}
+$("lb-close").onclick=closeLightbox;
 
 function resize(file){
   return new Promise((res,rej)=>{
