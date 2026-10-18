@@ -15,16 +15,17 @@ body{font:16px/1.55 "Noto Sans SC",system-ui,-apple-system,sans-serif;padding:ca
 h1{font:600 28px/1.2 "Noto Serif SC",Georgia,serif;letter-spacing:.02em}
 .sub{color:var(--muted);font-size:14px;margin-top:4px}
 .card{background:var(--soft);border-radius:16px;padding:16px;margin-top:18px}
-label{display:block;font-size:13px;color:var(--muted);letter-spacing:.06em;margin-bottom:6px}
+label{display:block;font-size:13px;color:var(--muted);letter-spacing:.06em;margin:10px 0 6px}
+label:first-child{margin-top:0}
 input[type=password],input[type=text]{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
-.row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
 button{font:inherit;font-weight:500;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:var(--accent);color:#fff}
 button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 button:disabled{opacity:.5;cursor:default}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.big{width:100%;padding:20px;font-size:18px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px}
+.big{width:100%;padding:18px;font-size:17px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px}
 .hint{font-size:13px;color:var(--muted);margin-top:8px}
-#log{font-size:14px;margin-top:10px;min-height:20px}
+#log{font-size:14px;margin-top:10px;min-height:20px;white-space:pre-wrap}
 #log.ok{color:var(--ok)}#log.bad{color:var(--bad)}
 .head{display:flex;align-items:baseline;justify-content:space-between;margin-top:26px}
 .head h2{font-size:17px;font-weight:500}
@@ -32,23 +33,22 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .tile{position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:var(--soft)}
 .tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile.novid{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.tile .ico{font-size:34px}
 .tile .n{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:2px 7px;border-radius:999px}
 .tile .n.next{background:var(--accent)}
-.tile .x{position:absolute;right:6px;top:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:28px;text-align:center;padding:0}
-.tile.video{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);background:var(--soft)}
-.tile.video .ico{font-size:34px}
-.tile .cv{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:4px 9px;border-radius:999px}
-.tile .x.confirm{background:var(--bad);width:auto;padding:0 10px;font-size:13px}
+.tile .k{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:2px 7px;border-radius:999px}
 .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px}
 progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 .lb[hidden]{display:none!important}
 .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;z-index:10}
 .lb .top{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;color:#fff;font-size:13px}
 .lb .top button{background:rgba(255,255,255,.15);color:#fff;padding:8px 12px}
-.lb .body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.lb .body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#ccc}
 .lb img,.lb video{max-width:100%;max-height:100%;object-fit:contain}
-.lb .foot{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px));color:#ccc;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.lb .foot button{background:var(--bad);color:#fff;padding:8px 12px}
+.lb .foot{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px));color:#ccc;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.lb .foot .del{background:var(--bad);color:#fff;padding:8px 12px}
+.lb .foot .cv{background:rgba(255,255,255,.15);color:#fff;padding:8px 12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -57,10 +57,14 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 <div class="sub">东京大事件 · 每天 07:30 用掉最早的一条（图片或视频）</div>
 
 <section class="card" id="auth">
-  <label for="pat">GitHub 令牌（只需填一次，存在本机浏览器）</label>
+  <label for="pat">GitHub 令牌（Contents 读写）</label>
   <input type="password" id="pat" placeholder="github_pat_…" autocomplete="off">
-  <div class="row"><button id="save">保存</button><button class="ghost" id="forget" hidden>清除</button></div>
-  <div class="hint">令牌需要对 market-brief 仓库有 Contents 读写权限。</div>
+  <label for="bot">Telegram bot token（视频上传用，可先不填）</label>
+  <input type="password" id="bot" placeholder="1234567890:AA…" autocomplete="off">
+  <label for="chat">你的 Telegram 用户 ID（视频先存到你和 bot 的私聊）</label>
+  <input type="text" id="chat" placeholder="数字，和 GitHub 里的 TELEGRAM_CHAT_ID 一样" inputmode="numeric" autocomplete="off">
+  <div class="row"><button id="save">保存</button></div>
+  <div class="hint">都只存在本机浏览器里。</div>
 </section>
 
 <section id="main" hidden>
@@ -69,66 +73,111 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
   <input type="file" id="cfile" accept="image/*" hidden>
   <button class="big" id="pick">📷 选择图片上传</button>
   <button class="big ghost" id="pickv" style="margin-top:10px">🎬 视频 + 封面</button>
-  <div class="hint">图片自动压缩；视频 ≤ 45MB，先选视频再选封面（可跳过，用首帧）</div>
+  <div class="hint">图片自动压缩；视频 ≤ 50MB，先选视频再选封面</div>
   <div class="card" id="coverask" hidden>
-    <div id="coverask-text">已选视频。要加封面吗？</div>
+    <div id="coverask-text"></div>
     <div class="row"><button id="cover-yes">选封面图</button><button class="ghost" id="cover-no">不用，用首帧</button><button class="ghost" id="cover-cancel">取消上传</button></div>
   </div>
   <progress id="prog" value="0" max="1" hidden></progress>
   <div id="log"></div>
   <div class="head"><h2>队列</h2><span class="count" id="count"></span></div>
   <div class="grid" id="grid"></div>
-  <div class="lb" id="lb" hidden><div class="top"><span id="lb-title"></span><button id="lb-close">关闭</button></div><div class="body" id="lb-body"></div><div class="foot"><span id="lb-info"></span><button id="lb-del">删除这条</button></div></div>
   <div class="empty" id="empty" hidden>队列为空，早报会用图库兜底</div>
-  <div class="row" style="margin-top:14px"><button class="ghost" id="reload">刷新</button><button class="ghost" id="logout">换令牌</button></div>
+  <div class="row" style="margin-top:14px"><button class="ghost" id="reload">刷新</button><button class="ghost" id="settings">设置</button></div>
 </section>
 
+<div class="lb" id="lb" hidden>
+  <div class="top"><span id="lb-title"></span><button id="lb-close">关闭</button></div>
+  <div class="body" id="lb-body"></div>
+  <div class="foot"><span id="lb-info"></span><span><button class="cv" id="lb-cover" hidden>换封面</button> <button class="del" id="lb-del">删除这条</button></span></div>
+</div>
+
 <script>
-const OWNER="ScareCrowInMountain", REPO="market-brief", DIR="assets/morning", BRANCH="main";
-const API=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${DIR}`;
+const OWNER="ScareCrowInMountain", REPO="market-brief", DIR="assets/morning", BRANCH="main", VQ="state/video_queue.json";
+const API=`https://api.github.com/repos/${OWNER}/${REPO}/contents/`;
+const IMAGE_RE=/\.(jpe?g|png|webp)$/i;
 const $=id=>document.getElementById(id);
-let token="";
-try{token=localStorage.getItem("mb_pat")||""}catch(e){}
+const cfg={pat:"",bot:"",chat:""};
+try{for(const k in cfg)cfg[k]=localStorage.getItem("mb_"+k)||""}catch(e){}
 
-function headers(extra){return Object.assign({"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},extra||{})}
+const gh=(extra)=>Object.assign({"Authorization":"Bearer "+cfg.pat,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},extra||{});
 function log(msg,cls){const l=$("log");l.textContent=msg;l.className=cls||""}
-function show(){const has=!!token;$("auth").hidden=has;$("main").hidden=!has;$("forget").hidden=!has;if(has)refresh()}
-
-$("save").onclick=()=>{const v=$("pat").value.trim();if(!v)return;token=v;try{localStorage.setItem("mb_pat",v)}catch(e){};$("pat").value="";show()};
-$("logout").onclick=$("forget").onclick=()=>{token="";try{localStorage.removeItem("mb_pat")}catch(e){};show()};
-$("pick").onclick=()=>$("file").click();
-$("pickv").onclick=()=>{log("请选择视频…");$("vfile").value="";$("vfile").click()};
-$("vfile").onchange=()=>{const v=$("vfile").files[0];if(v)pickVideoWithCover(v);else log("没有选中视频")};
+function fmtMB(n){return (n/1048576).toFixed(1)+" MB"}
+function stamp(d){const p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+"-"+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())}
+function show(){const has=!!cfg.pat;$("auth").hidden=has;$("main").hidden=!has;if(has)refresh()}
+function openSettings(){$("pat").value=cfg.pat;$("bot").value=cfg.bot;$("chat").value=cfg.chat;$("auth").hidden=false;$("main").hidden=true}
+$("save").onclick=()=>{
+  cfg.pat=$("pat").value.trim();cfg.bot=$("bot").value.trim();cfg.chat=$("chat").value.trim();
+  try{for(const k in cfg)localStorage.setItem("mb_"+k,cfg[k])}catch(e){}
+  if(!cfg.pat){log("GitHub 令牌不能为空","bad");return}
+  show();
+};
+$("settings").onclick=openSettings;
 $("reload").onclick=refresh;
+$("pick").onclick=()=>$("file").click();
+$("pickv").onclick=()=>{
+  if(!cfg.bot||!cfg.chat){log("先在「设置」里填 bot token 和用户 ID，视频才能上传","bad");return}
+  log("请选择视频…");$("vfile").value="";$("vfile").click();
+};
+$("vfile").onchange=()=>{const v=$("vfile").files[0];if(v)videoFlow(v);else log("没有选中视频")};
 
-const REL=`https://api.github.com/repos/${OWNER}/${REPO}/releases`;
-const VIDEO_RE=/\.(mp4|mov|m4v|webm)$/i, IMAGE_RE=/\.(jpe?g|png|webp)$/i;
-let releaseId=null;
-async function queueRelease(){
-  if(releaseId)return releaseId;
-  let r=await fetch(REL+"/tags/queue",{headers:headers()});
-  if(r.status===404){
-    r=await fetch(REL,{method:"POST",headers:headers(),body:JSON.stringify({tag_name:"queue",name:"media queue",body:"Video queue for the morning post.",prerelease:true})});
-  }
-  if(!r.ok)throw new Error("读取视频队列失败 "+r.status);
-  releaseId=(await r.json()).id;return releaseId;
+/* ---------- GitHub helpers ---------- */
+function ghErr(r,what){return new Error(what+" "+r.status+(r.status===401?"（GitHub 令牌无效）":r.status===403?"（GitHub 令牌无权限）":r.status===409?"（冲突，请重试）":""))}
+async function putFile(path,b64,msg){
+  const r=await fetch(API+path,{method:"PUT",headers:gh(),body:JSON.stringify({message:msg,content:b64,branch:BRANCH})});
+  if(!r.ok)throw ghErr(r,"写入失败");return (await r.json()).content;
 }
+async function getJson(path){
+  const r=await fetch(API+path+"?ref="+BRANCH+"&t="+Date.now(),{headers:gh()});
+  if(r.status===404)return {data:null,sha:null};
+  if(!r.ok)throw ghErr(r,"读取失败");
+  const j=await r.json();const txt=decodeURIComponent(escape(atob(j.content.replace(/\n/g,""))));
+  return {data:JSON.parse(txt),sha:j.sha};
+}
+async function putJson(path,obj,sha,msg){
+  const b64=btoa(unescape(encodeURIComponent(JSON.stringify(obj,null,2)+"\n")));
+  const body={message:msg,content:b64,branch:BRANCH};if(sha)body.sha=sha;
+  const r=await fetch(API+path,{method:"PUT",headers:gh(),body:JSON.stringify(body)});
+  if(!r.ok)throw ghErr(r,"写入队列失败");
+}
+async function delFile(path,sha,msg){
+  const r=await fetch(API+path,{method:"DELETE",headers:gh(),body:JSON.stringify({message:msg,sha,branch:BRANCH})});
+  if(!r.ok)throw ghErr(r,"删除失败");
+}
+async function fileSha(path){const r=await fetch(API+path+"?ref="+BRANCH+"&t="+Date.now(),{headers:gh()});return r.ok?(await r.json()).sha:null}
+
+/* ---------- queue ---------- */
 async function listQueue(){
-  const r=await fetch(API+"?ref="+BRANCH+"&t="+Date.now(),{headers:headers()});
-  if(!r.ok&&r.status!==404)throw new Error("读取队列失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+  const r=await fetch(API+DIR+"?ref="+BRANCH+"&t="+Date.now(),{headers:gh()});
+  if(!r.ok&&r.status!==404)throw ghErr(r,"读取队列失败");
   const items=r.status===404?[]:await r.json();
-  const imgs=items.filter(f=>f.type==="file"&&IMAGE_RE.test(f.name)).map(f=>({kind:"image",name:f.name,url:f.url,sha:f.sha}));
-  let vids=[];
+  const covers={};items.forEach(f=>{if(f.name.endsWith(".cover.jpg"))covers[f.name]=f});
+  const imgs=items.filter(f=>f.type==="file"&&IMAGE_RE.test(f.name)&&!f.name.endsWith(".cover.jpg")).map(f=>({kind:"image",name:f.name,url:f.url,sha:f.sha}));
+  const vq=await getJson(VQ);
+  const vids=((vq.data&&vq.data.items)||[]).map(v=>Object.assign({kind:"video"},v,{coverFile:v.cover?covers[v.cover.split("/").pop()]||null:null}));
+  return {items:imgs.concat(vids).sort((a,b)=>a.name<b.name?-1:1),vq};
+}
+async function blobOf(url,accept){const r=await fetch(url,{headers:gh({"Accept":accept||"application/vnd.github.raw"})});if(!r.ok)throw new Error("读取失败 "+r.status);return URL.createObjectURL(await r.blob())}
+async function refresh(){
   try{
-    const rr=await fetch(REL+"/tags/queue?t="+Date.now(),{headers:headers()});
-    if(rr.ok){const rel=await rr.json();releaseId=rel.id;const covers={};(rel.assets||[]).forEach(a=>{if(a.name.endsWith(".cover.jpg"))covers[a.name]={id:a.id,url:REL+"/assets/"+a.id}});vids=(rel.assets||[]).filter(a=>VIDEO_RE.test(a.name)).map(a=>({kind:"video",name:a.name,id:a.id,size:a.size,url:REL+"/assets/"+a.id,cover:covers[a.name+".cover.jpg"]||null}))}
-  }catch(e){}
-  return imgs.concat(vids).sort((a,b)=>a.name<b.name?-1:1);
+    const {items}=await listQueue();
+    $("count").textContent=items.length?`${items.length} 条 ≈ ${items.length} 天`:"";
+    $("empty").hidden=items.length>0;
+    const g=$("grid");g.innerHTML="";
+    items.forEach((f,i)=>{
+      const t=document.createElement("div");t.className="tile";
+      const src=f.kind==="image"?f.url:(f.coverFile?f.coverFile.url:null);
+      if(src){const img=document.createElement("img");img.alt=f.name;t.appendChild(img);blobOf(src).then(u=>img.src=u).catch(()=>{})}
+      else{t.classList.add("novid");t.innerHTML='<div class="ico">🎬</div><div>'+fmtMB(f.size||0)+'</div>'}
+      const n=document.createElement("span");n.className="n"+(i===0?" next":"");n.textContent=i===0?"下一条":String(i+1);t.appendChild(n);
+      if(f.kind==="video"){const k=document.createElement("span");k.className="k";k.textContent="视频";t.appendChild(k)}
+      t.onclick=()=>openLightbox(f,i);
+      g.appendChild(t);
+    });
+  }catch(e){log(e.message,"bad")}
 }
-async function thumb(f,img){
-  const acc=f.url.includes("/releases/assets/")?"application/octet-stream":"application/vnd.github.raw";
-  try{const r=await fetch(f.url,{headers:headers({"Accept":acc})});if(!r.ok)return;img.src=URL.createObjectURL(await r.blob())}catch(e){}
-}
+
+/* ---------- images ---------- */
 function resizeTo(file,MAX,q){
   return new Promise((res,rej)=>{
     const img=new Image();const url=URL.createObjectURL(file);
@@ -138,27 +187,26 @@ function resizeTo(file,MAX,q){
     img.onerror=()=>rej(new Error("无法读取 "+file.name));img.src=url;
   });
 }
-function chooseCover(){
-  return new Promise(res=>{const inp=$("cfile");inp.value="";inp.onchange=()=>{res(inp.files[0]||null)};inp.oncancel=()=>res(null);inp.click()});
-}
-async function uploadVideo(f,coverFile){
-  if(f.size>45*1048576)throw new Error(f.name+" 超过 45MB，Telegram 发不出去");
-  const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
-  const name=stamp(new Date())+"-00"+ext;
-  const rid=await queueRelease();
-  log("上传视频…");
-  let r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name)}`,
-    {method:"POST",headers:headers({"Content-Type":f.type||"video/mp4"}),body:f});
-  if(!r.ok)throw new Error("视频上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
-  if(coverFile){
-    log("上传封面…");
-    const blob=await resizeTo(coverFile,320,0.8);
-    if(blob.size>200*1024)throw new Error("封面超过 200KB");
-    r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name+".cover.jpg")}`,
-      {method:"POST",headers:headers({"Content-Type":"image/jpeg"}),body:blob});
-    if(!r.ok)throw new Error("封面上传失败 "+r.status);
+function toB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob)})}
+$("file").onchange=async e=>{
+  const files=[...e.target.files];e.target.value="";if(!files.length){log("没有选中文件");return}
+  $("pick").disabled=true;const prog=$("prog");prog.hidden=false;prog.max=files.length;prog.value=0;let ok=0;
+  for(let i=0;i<files.length;i++){
+    try{
+      log(`上传中 ${i+1}/${files.length}…`);
+      const blob=await resizeTo(files[i],1600,0.86);
+      const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+".jpg";
+      await putFile(DIR+"/"+name,await toB64(blob),"feat: queue "+name);
+      ok++;prog.value=i+1;await new Promise(r=>setTimeout(r,1100));
+    }catch(err){log(err.message,"bad")}
   }
-}
+  prog.hidden=true;$("pick").disabled=false;
+  if(ok)log(`已上传 ${ok} 张`,"ok");
+  refresh();
+};
+
+/* ---------- videos (Telegram file_id) ---------- */
+function chooseCover(){return new Promise(res=>{const inp=$("cfile");inp.value="";inp.onchange=()=>res(inp.files[0]||null);inp.oncancel=()=>res(null);inp.click()})}
 function askCover(v){
   return new Promise(res=>{
     const box=$("coverask");$("coverask-text").textContent="已选视频 "+fmtMB(v.size)+"。要加封面吗？";box.hidden=false;
@@ -168,142 +216,86 @@ function askCover(v){
     $("cover-cancel").onclick=()=>done(null);
   });
 }
-async function pickVideoWithCover(v){
+async function tgSendVideo(file,name){
+  const fd=new FormData();fd.append("chat_id",cfg.chat);fd.append("video",file,name);fd.append("caption","📥 早报队列 "+name);fd.append("disable_notification","true");fd.append("supports_streaming","true");
+  const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/sendVideo`,{method:"POST",body:fd});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.ok)throw new Error("Telegram 上传失败 "+r.status+"："+(j.description||"")+(r.status===401?"（bot token 错）":r.status===400?"（用户 ID 不对，或你还没给 bot 发过消息）":""));
+  const m=j.result;const v=m.video||m.document||m.animation;
+  if(!v)throw new Error("Telegram 没有返回视频 file_id");
+  return {file_id:v.file_id,size:v.file_size||file.size,message_id:m.message_id};
+}
+async function uploadCover(coverFile,name){
+  const blob=await resizeTo(coverFile,320,0.8);
+  if(blob.size>200*1024)throw new Error("封面超过 200KB");
+  const path=DIR+"/"+name+".cover.jpg";
+  const sha=await fileSha(path);
+  const body={message:"feat: cover "+name,content:await toB64(blob),branch:BRANCH};if(sha)body.sha=sha;
+  const r=await fetch(API+path,{method:"PUT",headers:gh(),body:JSON.stringify(body)});
+  if(!r.ok)throw ghErr(r,"封面写入失败");return path;
+}
+async function videoFlow(v){
   const ans=await askCover(v);
   if(!ans){log("已取消");return}
+  if(v.size>50*1048576){log(v.name+" 超过 50MB，Telegram 发不出去","bad");return}
   $("pickv").disabled=true;
-  try{await uploadVideo(v,ans.cover);log(ans.cover?"视频 + 封面已上传":"视频已上传（首帧封面）","ok")}
-  catch(e){log(e.message,"bad")}
+  try{
+    const ext=(v.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
+    const name=stamp(new Date())+"-00"+ext;
+    log("上传视频到 Telegram…（"+fmtMB(v.size)+"）");
+    const tg=await tgSendVideo(v,name);
+    let cover=null;
+    if(ans.cover){log("上传封面…");cover=await uploadCover(ans.cover,name)}
+    log("登记到队列…");
+    const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];
+    items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id});
+    await putJson(VQ,{items},vq.sha,"feat: queue video "+name);
+    log(cover?"视频 + 封面已上传":"视频已上传（首帧封面）","ok");
+  }catch(e){log(e.message,"bad")}
   $("pickv").disabled=false;refresh();
 }
-function pickCover(video){
-  const inp=$("cfile");inp.value="";
-  inp.onchange=async()=>{
-    const f=inp.files[0];if(!f)return;
-    try{
-      log("上传封面…");
-      const blob=await resizeTo(f,320,0.8);
-      if(blob.size>200*1024)throw new Error("封面超过 200KB");
-      const rid=await queueRelease();
-      if(video.cover){await fetch(video.cover.url,{method:"DELETE",headers:headers()})}
-      const r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(video.name+".cover.jpg")}`,
-        {method:"POST",headers:headers({"Content-Type":"image/jpeg"}),body:blob});
-      if(!r.ok)throw new Error("封面上传失败 "+r.status);
-      log("封面已设置","ok");refresh();
-    }catch(e){log(e.message,"bad")}
-  };
-  inp.click();
-}
-function fmtMB(n){return (n/1048576).toFixed(1)+" MB"}
-async function refresh(){
-  log("");
-  try{
-    const files=await listQueue();
-    $("count").textContent=files.length?`${files.length} 条 ≈ ${files.length} 天`:"";
-    $("empty").hidden=files.length>0;
-    const g=$("grid");g.innerHTML="";
-    files.forEach((f,i)=>{
-      const t=document.createElement("div");t.className="tile"+(f.kind==="video"?" video":"");
-      if(f.kind==="video"){
-        if(f.cover){const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb({url:f.cover.url},img);t.classList.remove("video")}
-        else{t.innerHTML='<div class="ico">🎬</div><div>'+fmtMB(f.size)+'</div>'}
-        const c=document.createElement("button");c.className="cv";c.textContent=f.cover?"换封面":"设封面";
-        c.onclick=()=>pickCover(f);t.appendChild(c);
-      }
-      else{const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb(f,img)}
-      const n=document.createElement("span");n.className="n"+(i===0?" next":"");n.textContent=i===0?"下一条":String(i+1);t.appendChild(n);
-      const x=document.createElement("button");x.className="x";x.textContent="×";x.setAttribute("aria-label","删除");
-      let armed=false;
-      x.onclick=async()=>{
-        if(!armed){armed=true;x.textContent="确认删除";x.classList.add("confirm");setTimeout(()=>{armed=false;x.textContent="×";x.classList.remove("confirm")},3000);return}
-        x.disabled=true;
-        try{
-          if(f.kind==="video"&&f.cover){await fetch(f.cover.url,{method:"DELETE",headers:headers()})}
-          const r=f.kind==="video"
-            ?await fetch(f.url,{method:"DELETE",headers:headers()})
-            :await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
-          if(!r.ok&&r.status!==204)throw new Error("删除失败 "+r.status);
-          log("已删除 "+f.name,"ok");refresh();
-        }catch(e){log(e.message,"bad");x.disabled=false}
-      };
-      t.appendChild(x);
-      t.onclick=ev=>{if(ev.target.tagName==="BUTTON")return;openLightbox(f,i)};
-      g.appendChild(t);
-    });
-  }catch(e){log(e.message,"bad")}
-}
-let lbUrl=null;
+
+/* ---------- lightbox ---------- */
+let lbUrl=null,confirmDel=false;
+function closeLightbox(){$("lb").hidden=true;$("lb-body").innerHTML="";if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null};confirmDel=false;$("lb-del").textContent="删除这条"}
+$("lb-close").onclick=closeLightbox;
 async function openLightbox(f,i){
-  const lb=$("lb"),body=$("lb-body");body.innerHTML="";lb.hidden=false;
+  const body=$("lb-body");body.textContent="加载中…";$("lb").hidden=false;
   $("lb-title").textContent=(i===0?"下一条 · ":"第 "+(i+1)+" 条 · ")+(f.kind==="video"?"视频":"图片");
   $("lb-info").textContent=f.name+(f.size?" · "+fmtMB(f.size):"");
+  $("lb-cover").hidden=f.kind!=="video";
   if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}
-  const acc=f.kind==="video"||f.url.includes("/releases/assets/")?"application/octet-stream":"application/vnd.github.raw";
-  const ph=document.createElement("div");ph.style.color="#ccc";ph.textContent="加载中…";body.appendChild(ph);
   try{
-    const r=await fetch(f.url,{headers:headers({"Accept":acc})});if(!r.ok)throw new Error("读取失败 "+r.status);
-    lbUrl=URL.createObjectURL(await r.blob());body.innerHTML="";
-    if(f.kind==="video"){const v=document.createElement("video");v.src=lbUrl;v.controls=true;v.playsInline=true;v.autoplay=true;if(f.cover){/* poster via blob */}body.appendChild(v)}
-    else{const im=document.createElement("img");im.src=lbUrl;body.appendChild(im)}
-  }catch(e){ph.textContent=e.message}
+    if(f.kind==="image"){lbUrl=await blobOf(f.url);const im=document.createElement("img");im.src=lbUrl;body.innerHTML="";body.appendChild(im)}
+    else{
+      const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/getFile?file_id=${encodeURIComponent(f.file_id)}`);const j=await r.json();
+      if(!j.ok)throw new Error("取不到视频地址："+(j.description||""));
+      const vid=document.createElement("video");vid.src=`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`;vid.controls=true;vid.playsInline=true;vid.autoplay=true;
+      if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
+      body.innerHTML="";body.appendChild(vid);
+    }
+  }catch(e){body.textContent=e.message}
+  $("lb-cover").onclick=async()=>{
+    const c=await chooseCover();if(!c)return;
+    try{$("lb-info").textContent="上传封面…";const path=await uploadCover(c,f.name);
+      const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];items.forEach(it=>{if(it.file_id===f.file_id)it.cover=path});
+      await putJson(VQ,{items},vq.sha,"feat: cover for "+f.name);$("lb-info").textContent="封面已更新";refresh()}
+    catch(e){$("lb-info").textContent=e.message}
+  };
   $("lb-del").onclick=async()=>{
     if(!confirmDel){confirmDel=true;$("lb-del").textContent="再点一次确认删除";setTimeout(()=>{confirmDel=false;$("lb-del").textContent="删除这条"},3000);return}
     confirmDel=false;
     try{
-      if(f.kind==="video"&&f.cover){await fetch(f.cover.url,{method:"DELETE",headers:headers()})}
-      const r=f.kind==="video"?await fetch(f.url,{method:"DELETE",headers:headers()})
-        :await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
-      if(!r.ok&&r.status!==204)throw new Error("删除失败 "+r.status);
+      if(f.kind==="image"){await delFile(DIR+"/"+f.name,f.sha,"chore: remove "+f.name)}
+      else{
+        const vq=await getJson(VQ);const items=((vq.data&&vq.data.items)||[]).filter(it=>it.file_id!==f.file_id);
+        await putJson(VQ,{items},vq.sha,"chore: remove video "+f.name);
+        if(f.coverFile){await delFile(DIR+"/"+f.coverFile.name,f.coverFile.sha,"chore: remove cover "+f.name).catch(()=>{})}
+      }
       closeLightbox();log("已删除 "+f.name,"ok");refresh();
     }catch(e){$("lb-info").textContent=e.message}
   };
 }
-let confirmDel=false;
-function closeLightbox(){$("lb").hidden=true;$("lb-body").innerHTML="";if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null};confirmDel=false;$("lb-del").textContent="删除这条"}
-$("lb-close").onclick=closeLightbox;
-
-function resize(file){
-  return new Promise((res,rej)=>{
-    const img=new Image();const url=URL.createObjectURL(file);
-    img.onload=()=>{
-      const MAX=1600;let w=img.naturalWidth,h=img.naturalHeight;
-      const s=Math.min(1,MAX/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
-      const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
-      URL.revokeObjectURL(url);
-      c.toBlob(b=>b?res(b):rej(new Error("压缩失败")),"image/jpeg",0.86);
-    };
-    img.onerror=()=>rej(new Error("无法读取 "+file.name));
-    img.src=url;
-  });
-}
-function toB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob)})}
-function stamp(d){const p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+"-"+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())}
-
-$("file").onchange=async e=>{
-  const files=[...e.target.files];e.target.value="";if(!files.length){log("没有选中文件");return}
-  $("pick").disabled=true;const prog=$("prog");prog.hidden=false;prog.max=files.length;prog.value=0;
-  let ok=0;
-  for(let i=0;i<files.length;i++){
-    const f=files[i];
-    try{
-      log(`上传中 ${i+1}/${files.length}…`);
-      const isVideo=f.type.startsWith("video/")||VIDEO_RE.test(f.name);
-      if(isVideo){
-        await uploadVideo(f,null);
-      }else{
-        const blob=await resize(f);
-        const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+".jpg";
-        const r=await fetch(API+"/"+name,{method:"PUT",headers:headers(),body:JSON.stringify({message:"feat: queue "+name,content:await toB64(blob),branch:BRANCH})});
-        if(!r.ok)throw new Error("上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
-      }
-      ok++;prog.value=i+1;
-      await new Promise(r=>setTimeout(r,1100));
-    }catch(err){log(err.message,"bad")}
-  }
-  prog.hidden=true;$("pick").disabled=false;
-  if(ok)log(`已上传 ${ok} 条`,"ok");
-  refresh();
-};
 show();
 </script>
 </body>
