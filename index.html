@@ -311,8 +311,9 @@ async function openLightbox(f,i){
         const vid=document.createElement("video");vid.controls=true;vid.playsInline=true;vid.muted=true;vid.autoplay=true;vid.id="lb-video";
         if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
         const direct=`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`;
-        try{const vr=await fetch(direct);if(!vr.ok)throw new Error(vr.status);lbUrl=URL.createObjectURL(await vr.blob());vid.src=lbUrl;$("lb-frame").hidden=false}
-        catch(e){vid.src=direct}  // playable, but frames can't be captured cross-origin
+        try{const vr=await fetch(direct);if(!vr.ok)throw new Error(vr.status);lbUrl=URL.createObjectURL(await vr.blob());vid.src=lbUrl}
+        catch(e){vid.src=direct;vid.crossOrigin="anonymous"}
+        $("lb-frame").hidden=false;
         body.innerHTML="";body.appendChild(vid);
       }
     }
@@ -327,8 +328,10 @@ async function openLightbox(f,i){
   $("lb-frame").onclick=()=>{
     const vid=$("lb-video");if(!vid)return;vid.pause();
     const w=vid.videoWidth,h=vid.videoHeight;if(!w||!h){$("lb-info").textContent="画面还没出来，稍等再点";return}
-    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(vid,0,0,w,h);
-    c.toBlob(b=>{if(b)setCover(new File([b],"frame.jpg",{type:"image/jpeg"}));else $("lb-info").textContent="抽帧失败"},"image/jpeg",0.92);
+    try{
+      const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(vid,0,0,w,h);
+      c.toBlob(b=>{if(b)setCover(new File([b],"frame.jpg",{type:"image/jpeg"}));else $("lb-info").textContent="抽帧失败，请用「选图做封面」"},"image/jpeg",0.92);
+    }catch(e){$("lb-info").textContent="这个视频不允许抽帧（跨域），请用「选图做封面」"}
   };
   $("lb-del").onclick=async()=>{
     if(!confirmDel){confirmDel=true;$("lb-del").textContent="再点一次确认删除";setTimeout(()=>{confirmDel=false;$("lb-del").textContent="删除这条"},3000);return}
