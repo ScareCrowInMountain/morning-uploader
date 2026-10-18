@@ -93,7 +93,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 <div class="lb" id="lb" hidden>
   <div class="top"><span id="lb-title"></span><button id="lb-close">关闭</button></div>
   <div class="body" id="lb-body"></div>
-  <div class="foot"><span id="lb-info"></span><span><button class="cv" id="lb-cover" hidden>换封面</button> <button class="del" id="lb-del">删除这条</button></span></div>
+  <div class="foot"><span id="lb-info"></span><span><button class="cv" id="lb-frame" hidden>当前画面做封面</button> <button class="cv" id="lb-cover" hidden>选图做封面</button> <button class="del" id="lb-del">删除这条</button></span></div>
 </div>
 
 <script>
@@ -294,24 +294,32 @@ async function openLightbox(f,i){
   const body=$("lb-body");body.textContent="加载中…";$("lb").hidden=false;
   $("lb-title").textContent=(i===0?"下一条 · ":"第 "+(i+1)+" 条 · ")+(f.kind==="video"?"视频":"图片");
   $("lb-info").textContent=f.name+(f.size?" · "+fmtMB(f.size):"");
-  $("lb-cover").hidden=f.kind!=="video";
+  $("lb-cover").hidden=f.kind!=="video";$("lb-frame").hidden=true;
   if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}
   try{
     if(f.kind==="image"){lbUrl=await blobOf(f.url);const im=document.createElement("img");im.src=lbUrl;body.innerHTML="";body.appendChild(im)}
     else{
       const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/getFile?file_id=${encodeURIComponent(f.file_id)}`);const j=await r.json();
       if(!j.ok)throw new Error("取不到视频地址："+(j.description||""));
-      const vid=document.createElement("video");vid.src=`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`;vid.controls=true;vid.playsInline=true;vid.autoplay=true;
+      const vr=await fetch(`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`);if(!vr.ok)throw new Error("视频下载失败 "+vr.status);
+      lbUrl=URL.createObjectURL(await vr.blob());
+      const vid=document.createElement("video");vid.src=lbUrl;vid.controls=true;vid.playsInline=true;vid.muted=true;vid.autoplay=true;vid.id="lb-video";
       if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
-      body.innerHTML="";body.appendChild(vid);
+      body.innerHTML="";body.appendChild(vid);$("lb-frame").hidden=false;
     }
   }catch(e){body.textContent=e.message}
-  $("lb-cover").onclick=async()=>{
-    const c=await chooseCover();if(!c)return;
+  async function setCover(c){
     try{$("lb-info").textContent="上传封面…";const path=await uploadCover(c,f.name);
       const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];items.forEach(it=>{if(it.file_id===f.file_id)it.cover=path});
       await putJson(VQ,{items},vq.sha,"feat: cover for "+f.name);$("lb-info").textContent="封面已更新";refresh()}
     catch(e){$("lb-info").textContent=e.message}
+  }
+  $("lb-cover").onclick=async()=>{const c=await chooseCover();if(c)setCover(c)};
+  $("lb-frame").onclick=()=>{
+    const vid=$("lb-video");if(!vid)return;vid.pause();
+    const w=vid.videoWidth,h=vid.videoHeight;if(!w||!h){$("lb-info").textContent="画面还没出来，稍等再点";return}
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(vid,0,0,w,h);
+    c.toBlob(b=>{if(b)setCover(new File([b],"frame.jpg",{type:"image/jpeg"}));else $("lb-info").textContent="抽帧失败"},"image/jpeg",0.92);
   };
   $("lb-del").onclick=async()=>{
     if(!confirmDel){confirmDel=true;$("lb-del").textContent="再点一次确认删除";setTimeout(()=>{confirmDel=false;$("lb-del").textContent="删除这条"},3000);return}
