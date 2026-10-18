@@ -59,12 +59,9 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 <section class="card" id="auth">
   <label for="pat">GitHub 令牌（Contents 读写）</label>
   <input type="password" id="pat" placeholder="github_pat_…" autocomplete="off">
-  <label for="bot">Telegram bot token（视频上传用，可先不填）</label>
-  <input type="password" id="bot" placeholder="1234567890:AA…" autocomplete="off">
-  <label for="chat">你的 Telegram 用户 ID（视频先存到你和 bot 的私聊）</label>
-  <input type="text" id="chat" placeholder="数字，和 GitHub 里的 TELEGRAM_CHAT_ID 一样" inputmode="numeric" autocomplete="off">
   <div class="row"><button id="save">保存</button></div>
-  <div class="hint">都只存在本机浏览器里。</div>
+  <div class="hint">只存在本机浏览器里。Telegram 配置会自动从仓库读取。</div>
+  <input type="hidden" id="bot"><input type="hidden" id="chat">
 </section>
 
 <section id="main" hidden>
@@ -104,7 +101,11 @@ const gh=(extra)=>Object.assign({"Authorization":"Bearer "+cfg.pat,"Accept":"app
 function log(msg,cls){const l=$("log");l.textContent=msg;l.className=cls||""}
 function fmtMB(n){return (n/1048576).toFixed(1)+" MB"}
 function stamp(d){const p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+"-"+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())}
-function show(){const has=!!cfg.pat;$("auth").hidden=has;$("main").hidden=!has;if(has)refresh()}
+async function loadTgConfig(){
+  try{const {data}=await getJson("state/uploader.json");if(data&&data.bot){cfg.bot=data.bot;cfg.chat=data.chat;try{localStorage.setItem("mb_bot",cfg.bot);localStorage.setItem("mb_chat",cfg.chat)}catch(e){}}}
+  catch(e){log("读取 Telegram 配置失败："+e.message,"bad")}
+}
+async function show(){const has=!!cfg.pat;$("auth").hidden=has;$("main").hidden=!has;if(has){await loadTgConfig();refresh()}}
 function openSettings(){$("pat").value=cfg.pat;$("bot").value=cfg.bot;$("chat").value=cfg.chat;$("auth").hidden=false;$("main").hidden=true}
 $("save").onclick=()=>{
   cfg.pat=$("pat").value.trim();cfg.bot=$("bot").value.trim();cfg.chat=$("chat").value.trim();
@@ -113,10 +114,10 @@ $("save").onclick=()=>{
   show();
 };
 $("settings").onclick=openSettings;
-$("reload").onclick=refresh;
+$("reload").onclick=async()=>{await loadTgConfig();refresh()};
 $("pick").onclick=()=>$("file").click();
 $("pickv").onclick=()=>{
-  if(!cfg.bot||!cfg.chat){log("先在「设置」里填 bot token 和用户 ID，视频才能上传","bad");return}
+  if(!cfg.bot||!cfg.chat){log("Telegram 配置还没读到，点「刷新」再试","bad");return}
   log("请选择视频…");$("vfile").value="";$("vfile").click();
 };
 $("vfile").onchange=()=>{const v=$("vfile").files[0];if(v)videoFlow(v);else log("没有选中视频")};
