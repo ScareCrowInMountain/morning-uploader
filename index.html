@@ -35,6 +35,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .tile .n{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:2px 7px;border-radius:999px}
 .tile .n.next{background:var(--accent)}
 .tile .x{position:absolute;right:6px;top:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:28px;text-align:center;padding:0}
+.tile.video{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);background:var(--soft)}
+.tile.video .ico{font-size:34px}
 .tile .x.confirm{background:var(--bad);width:auto;padding:0 10px;font-size:13px}
 .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px}
 progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
@@ -43,7 +45,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 </head>
 <body>
 <h1>早报图库</h1>
-<div class="sub">东京大事件 · 每天 07:30 用掉最早的一张</div>
+<div class="sub">东京大事件 · 每天 07:30 用掉最早的一条（图片或视频）</div>
 
 <section class="card" id="auth">
   <label for="pat">GitHub 令牌（只需填一次，存在本机浏览器）</label>
@@ -53,8 +55,9 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 </section>
 
 <section id="main" hidden>
-  <input type="file" id="file" accept="image/*" multiple hidden>
-  <button class="big" id="pick">📷 选择图片上传</button>
+  <input type="file" id="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple hidden>
+  <button class="big" id="pick">📷🎬 选择图片 / 视频上传</button>
+  <div class="hint">图片自动压缩；视频原样上传，单个 ≤ 45MB（Telegram 上限）</div>
   <progress id="prog" value="0" max="1" hidden></progress>
   <div id="log"></div>
   <div class="head"><h2>队列</h2><span class="count" id="count"></span></div>
@@ -79,35 +82,56 @@ $("logout").onclick=$("forget").onclick=()=>{token="";try{localStorage.removeIte
 $("pick").onclick=()=>$("file").click();
 $("reload").onclick=refresh;
 
+const REL=`https://api.github.com/repos/${OWNER}/${REPO}/releases`;
+const VIDEO_RE=/\.(mp4|mov|m4v|webm)$/i, IMAGE_RE=/\.(jpe?g|png|webp)$/i;
+let releaseId=null;
+async function queueRelease(){
+  if(releaseId)return releaseId;
+  let r=await fetch(REL+"/tags/queue",{headers:headers()});
+  if(r.status===404){
+    r=await fetch(REL,{method:"POST",headers:headers(),body:JSON.stringify({tag_name:"queue",name:"media queue",body:"Video queue for the morning post.",prerelease:true})});
+  }
+  if(!r.ok)throw new Error("读取视频队列失败 "+r.status);
+  releaseId=(await r.json()).id;return releaseId;
+}
 async function listQueue(){
   const r=await fetch(API+"?ref="+BRANCH+"&t="+Date.now(),{headers:headers()});
-  if(r.status===404)return[];
-  if(!r.ok)throw new Error("读取队列失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
-  const items=await r.json();
-  return items.filter(f=>f.type==="file"&&/\.(jpe?g|png|webp)$/i.test(f.name)).sort((a,b)=>a.name<b.name?-1:1);
+  if(!r.ok&&r.status!==404)throw new Error("读取队列失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+  const items=r.status===404?[]:await r.json();
+  const imgs=items.filter(f=>f.type==="file"&&IMAGE_RE.test(f.name)).map(f=>({kind:"image",name:f.name,url:f.url,sha:f.sha}));
+  let vids=[];
+  try{
+    const rr=await fetch(REL+"/tags/queue?t="+Date.now(),{headers:headers()});
+    if(rr.ok){const rel=await rr.json();releaseId=rel.id;vids=(rel.assets||[]).filter(a=>VIDEO_RE.test(a.name)).map(a=>({kind:"video",name:a.name,id:a.id,size:a.size,url:REL+"/assets/"+a.id}))}
+  }catch(e){}
+  return imgs.concat(vids).sort((a,b)=>a.name<b.name?-1:1);
 }
 async function thumb(f,img){
   try{const r=await fetch(f.url,{headers:headers({"Accept":"application/vnd.github.raw"})});if(!r.ok)return;img.src=URL.createObjectURL(await r.blob())}catch(e){}
 }
+function fmtMB(n){return (n/1048576).toFixed(1)+" MB"}
 async function refresh(){
   log("");
   try{
     const files=await listQueue();
-    $("count").textContent=files.length?`${files.length} 张 ≈ ${files.length} 天`:"";
+    $("count").textContent=files.length?`${files.length} 条 ≈ ${files.length} 天`:"";
     $("empty").hidden=files.length>0;
     const g=$("grid");g.innerHTML="";
     files.forEach((f,i)=>{
-      const t=document.createElement("div");t.className="tile";
-      const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb(f,img);
-      const n=document.createElement("span");n.className="n"+(i===0?" next":"");n.textContent=i===0?"下一张":String(i+1);t.appendChild(n);
+      const t=document.createElement("div");t.className="tile"+(f.kind==="video"?" video":"");
+      if(f.kind==="video"){t.innerHTML='<div class="ico">🎬</div><div>'+fmtMB(f.size)+'</div>'}
+      else{const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb(f,img)}
+      const n=document.createElement("span");n.className="n"+(i===0?" next":"");n.textContent=i===0?"下一条":String(i+1);t.appendChild(n);
       const x=document.createElement("button");x.className="x";x.textContent="×";x.setAttribute("aria-label","删除");
       let armed=false;
       x.onclick=async()=>{
         if(!armed){armed=true;x.textContent="确认删除";x.classList.add("confirm");setTimeout(()=>{armed=false;x.textContent="×";x.classList.remove("confirm")},3000);return}
         x.disabled=true;
         try{
-          const r=await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
-          if(!r.ok)throw new Error("删除失败 "+r.status);
+          const r=f.kind==="video"
+            ?await fetch(f.url,{method:"DELETE",headers:headers()})
+            :await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
+          if(!r.ok&&r.status!==204)throw new Error("删除失败 "+r.status);
           log("已删除 "+f.name,"ok");refresh();
         }catch(e){log(e.message,"bad");x.disabled=false}
       };
@@ -138,18 +162,30 @@ $("file").onchange=async e=>{
   $("pick").disabled=true;const prog=$("prog");prog.hidden=false;prog.max=files.length;prog.value=0;
   let ok=0;
   for(let i=0;i<files.length;i++){
+    const f=files[i];
     try{
       log(`上传中 ${i+1}/${files.length}…`);
-      const blob=await resize(files[i]);
-      const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+".jpg";
-      const r=await fetch(API+"/"+name,{method:"PUT",headers:headers(),body:JSON.stringify({message:"feat: queue "+name,content:await toB64(blob),branch:BRANCH})});
-      if(!r.ok)throw new Error("上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+      const isVideo=f.type.startsWith("video/")||VIDEO_RE.test(f.name);
+      if(isVideo){
+        if(f.size>45*1048576)throw new Error(f.name+" 超过 45MB，Telegram 发不出去");
+        const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
+        const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+ext;
+        const rid=await queueRelease();
+        const r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name)}`,
+          {method:"POST",headers:headers({"Content-Type":f.type||"video/mp4"}),body:f});
+        if(!r.ok)throw new Error("视频上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+      }else{
+        const blob=await resize(f);
+        const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+".jpg";
+        const r=await fetch(API+"/"+name,{method:"PUT",headers:headers(),body:JSON.stringify({message:"feat: queue "+name,content:await toB64(blob),branch:BRANCH})});
+        if(!r.ok)throw new Error("上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+      }
       ok++;prog.value=i+1;
-      await new Promise(r=>setTimeout(r,1100)); // keep file names unique & be gentle with the API
+      await new Promise(r=>setTimeout(r,1100));
     }catch(err){log(err.message,"bad")}
   }
   prog.hidden=true;$("pick").disabled=false;
-  if(ok)log(`已上传 ${ok} 张`,"ok");
+  if(ok)log(`已上传 ${ok} 条`,"ok");
   refresh();
 };
 show();
