@@ -76,6 +76,18 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
     <div id="coverask-text"></div>
     <div class="row"><button id="cover-frame">从视频抽帧</button><button class="ghost" id="cover-yes">选封面图</button><button class="ghost" id="cover-no">不用，用首帧</button><button class="ghost" id="cover-cancel">取消上传</button></div>
   </div>
+  <div class="card" id="feeded" hidden>
+    <div style="font-weight:500">预览版：选区域和起点（最长 8 秒）</div>
+    <div class="row" style="margin-top:8px"><button class="ghost" id="fe-45">4:5</button><button class="ghost" id="fe-11">1:1</button><span class="hint" style="align-self:center">拖动框选位置</span></div>
+    <div id="fe-wrap" style="position:relative;margin-top:10px;border-radius:12px;overflow:hidden;background:#000;touch-action:none;user-select:none">
+      <video id="fe-video" muted playsinline loop preload="auto" style="width:100%;display:block"></video>
+      <div id="fe-shade" style="position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:none;clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 0)"></div>
+      <div id="fe-box" style="position:absolute;left:0;top:0;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4) inset;border-radius:6px;pointer-events:none"></div>
+    </div>
+    <input type="range" id="fe-start" min="0" max="100" step="0.1" value="0" style="width:100%;margin-top:10px;accent-color:var(--accent)">
+    <div class="hint" id="fe-time"></div>
+    <div class="row"><button id="fe-ok">确定</button><button class="ghost" id="fe-skip">不做预览版</button><button class="ghost" id="fe-cancel">取消上传</button></div>
+  </div>
   <div class="card" id="framer" hidden>
     <video id="fr-video" muted playsinline preload="auto" style="width:100%;max-height:60vh;border-radius:12px;background:#000"></video>
     <input type="range" id="fr-range" min="0" max="100" step="0.1" value="0" style="width:100%;margin-top:10px;accent-color:var(--accent)">
@@ -273,7 +285,47 @@ async function uploadCover(coverFile,name){
   const r=await fetch(API+path,{method:"PUT",headers:gh(),body:JSON.stringify(body)});
   if(!r.ok)throw ghErr(r,"封面写入失败");return path;
 }
+function feedEditor(file){
+  // Returns {x,y,w,h,start,len} in source pixels, null = skip, false = cancel upload.
+  return new Promise(res=>{
+    const box=$("feeded"),vid=$("fe-video"),wrap=$("fe-wrap"),fb=$("fe-box"),shade=$("fe-shade"),rng=$("fe-start"),tm=$("fe-time");
+    const url=URL.createObjectURL(file);vid.src=url;box.hidden=false;
+    let aspect=[4,5],dur=0,pos=0,vw=0,vh=0,dw=0,dh=0,bw=0,bh=0,loopTimer=null;
+    const setAspect=a=>{aspect=a;$("fe-45").style.background=a[0]===4?"var(--accent)":"";$("fe-45").style.color=a[0]===4?"#fff":"";$("fe-11").style.background=a[0]===1?"var(--accent)":"";$("fe-11").style.color=a[0]===1?"#fff":"";layout()};
+    function layout(){
+      dw=wrap.clientWidth;dh=wrap.clientHeight;if(!dw||!dh)return;
+      bw=dw;bh=Math.round(dw*aspect[1]/aspect[0]);
+      if(bh>dh){bh=dh;bw=Math.round(dh*aspect[0]/aspect[1])}
+      pos=Math.max(0,Math.min(pos,(bw===dw?dh-bh:dw-bw)));
+      const left=bw===dw?0:pos,top=bw===dw?pos:0;
+      fb.style.width=bw+"px";fb.style.height=bh+"px";fb.style.left=left+"px";fb.style.top=top+"px";
+      shade.style.clipPath=`polygon(0 0,100% 0,100% 100%,0 100%,0 0,${left}px ${top}px,${left}px ${top+bh}px,${left+bw}px ${top+bh}px,${left+bw}px ${top}px,${left}px ${top}px)`;
+    }
+    function seg(){const start=parseFloat(rng.value)||0;const len=Math.max(0.5,Math.min(8,dur-start));tm.textContent=`起点 ${start.toFixed(1)} s · 预览 ${len.toFixed(1)} s · 共 ${dur.toFixed(1)} s`;return {start,len}}
+    function restart(){const {start,len}=seg();vid.currentTime=start;vid.play().catch(()=>{});clearInterval(loopTimer);loopTimer=setInterval(()=>{if(vid.currentTime>=start+len||vid.currentTime<start-0.2)vid.currentTime=start},200)}
+    vid.onloadedmetadata=()=>{vw=vid.videoWidth;vh=vid.videoHeight;dur=vid.duration||0;rng.max=Math.max(0,dur-0.5).toFixed(1);rng.value="0";requestAnimationFrame(()=>{layout();restart()})};
+    vid.onerror=()=>{log("浏览器无法解码这个视频，预览版跳过","bad");cleanup(null)};
+    rng.oninput=restart;
+    let dragging=false,startP=0,startPos=0;
+    wrap.onpointerdown=e=>{dragging=true;startP=bw===dw?e.clientY:e.clientX;startPos=pos;wrap.setPointerCapture(e.pointerId)};
+    wrap.onpointermove=e=>{if(!dragging)return;const d=(bw===dw?e.clientY:e.clientX)-startP;pos=startPos+d;layout()};
+    wrap.onpointerup=wrap.onpointercancel=()=>{dragging=false};
+    $("fe-45").onclick=()=>setAspect([4,5]);$("fe-11").onclick=()=>setAspect([1,1]);
+    const cleanup=val=>{clearInterval(loopTimer);box.hidden=true;vid.pause();vid.removeAttribute("src");vid.load();URL.revokeObjectURL(url);wrap.onpointerdown=wrap.onpointermove=wrap.onpointerup=null;$("fe-ok").onclick=$("fe-skip").onclick=$("fe-cancel").onclick=null;res(val)};
+    $("fe-ok").onclick=()=>{
+      if(!vw||!dw){log("画面还没加载好","bad");return}
+      const sc=vw/dw;const {start,len}=seg();
+      const x=Math.round((bw===dw?0:pos)*sc),y=Math.round((bw===dw?pos:0)*sc);
+      cleanup({x,y,w:Math.round(bw*sc),h:Math.round(bh*sc),start:+start.toFixed(2),len:+len.toFixed(2)});
+    };
+    $("fe-skip").onclick=()=>cleanup(null);
+    $("fe-cancel").onclick=()=>cleanup(false);
+    setAspect([4,5]);vid.load();
+  });
+}
 async function videoFlow(v){
+  const feed=await feedEditor(v);
+  if(feed===false){log("已取消");return}
   const ans=await askCover(v);
   if(!ans){log("已取消");return}
   if(v.size>50*1048576){log(v.name+" 超过 50MB，Telegram 发不出去","bad");return}
@@ -287,9 +339,9 @@ async function videoFlow(v){
     if(ans.cover){log("上传封面…");cover=await uploadCover(ans.cover,name)}
     log("登记到队列…");
     const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];
-    items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id,width:tg.width,height:tg.height,duration:tg.duration});
+    items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id,width:tg.width,height:tg.height,duration:tg.duration,feed:feed||null});
     await putJson(VQ,{items},vq.sha,"feat: queue video "+name);
-    log(cover?"视频 + 封面已上传":"视频已上传（首帧封面）","ok");
+    log((cover?"视频 + 封面已上传":"视频已上传（首帧封面）")+(feed?"，含预览版设置":""),"ok");
   }catch(e){log(e.message,"bad")}
   $("pickv").disabled=false;refresh();
 }
@@ -301,7 +353,7 @@ $("lb-close").onclick=closeLightbox;
 async function openLightbox(f,i){
   const body=$("lb-body");body.textContent="加载中…";$("lb").hidden=false;
   $("lb-title").textContent=(i===0?"下一条 · ":"第 "+(i+1)+" 条 · ")+(f.kind==="video"?"视频":"图片");
-  $("lb-info").textContent=f.name+(f.size?" · "+fmtMB(f.size):"");
+  $("lb-info").textContent=f.name+(f.size?" · "+fmtMB(f.size):"")+(f.feed?` · 预览版 ${f.feed.w}×${f.feed.h} 从 ${f.feed.start}s 起 ${f.feed.len}s`:"");
   $("lb-cover").hidden=f.kind!=="video";$("lb-frame").hidden=true;
   if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null}
   try{
