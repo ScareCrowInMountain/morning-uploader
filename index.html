@@ -37,6 +37,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .tile .x{position:absolute;right:6px;top:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:28px;text-align:center;padding:0}
 .tile.video{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);background:var(--soft)}
 .tile.video .ico{font-size:34px}
+.tile .cv{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:4px 9px;border-radius:999px}
 .tile .x.confirm{background:var(--bad);width:auto;padding:0 10px;font-size:13px}
 .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px}
 progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
@@ -102,12 +103,40 @@ async function listQueue(){
   let vids=[];
   try{
     const rr=await fetch(REL+"/tags/queue?t="+Date.now(),{headers:headers()});
-    if(rr.ok){const rel=await rr.json();releaseId=rel.id;vids=(rel.assets||[]).filter(a=>VIDEO_RE.test(a.name)).map(a=>({kind:"video",name:a.name,id:a.id,size:a.size,url:REL+"/assets/"+a.id}))}
+    if(rr.ok){const rel=await rr.json();releaseId=rel.id;const covers={};(rel.assets||[]).forEach(a=>{if(a.name.endsWith(".cover.jpg"))covers[a.name]={id:a.id,url:REL+"/assets/"+a.id}});vids=(rel.assets||[]).filter(a=>VIDEO_RE.test(a.name)).map(a=>({kind:"video",name:a.name,id:a.id,size:a.size,url:REL+"/assets/"+a.id,cover:covers[a.name+".cover.jpg"]||null}))}
   }catch(e){}
   return imgs.concat(vids).sort((a,b)=>a.name<b.name?-1:1);
 }
 async function thumb(f,img){
-  try{const r=await fetch(f.url,{headers:headers({"Accept":"application/vnd.github.raw"})});if(!r.ok)return;img.src=URL.createObjectURL(await r.blob())}catch(e){}
+  const acc=f.url.includes("/releases/assets/")?"application/octet-stream":"application/vnd.github.raw";
+  try{const r=await fetch(f.url,{headers:headers({"Accept":acc})});if(!r.ok)return;img.src=URL.createObjectURL(await r.blob())}catch(e){}
+}
+function resizeTo(file,MAX,q){
+  return new Promise((res,rej)=>{
+    const img=new Image();const url=URL.createObjectURL(file);
+    img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;const s=Math.min(1,MAX/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
+      const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
+      c.toBlob(b=>b?res(b):rej(new Error("压缩失败")),"image/jpeg",q)};
+    img.onerror=()=>rej(new Error("无法读取 "+file.name));img.src=url;
+  });
+}
+function pickCover(video){
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
+  inp.onchange=async()=>{
+    const f=inp.files[0];if(!f)return;
+    try{
+      log("上传封面…");
+      const blob=await resizeTo(f,320,0.8);
+      if(blob.size>200*1024)throw new Error("封面超过 200KB");
+      const rid=await queueRelease();
+      if(video.cover){await fetch(video.cover.url,{method:"DELETE",headers:headers()})}
+      const r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(video.name+".cover.jpg")}`,
+        {method:"POST",headers:headers({"Content-Type":"image/jpeg"}),body:blob});
+      if(!r.ok)throw new Error("封面上传失败 "+r.status);
+      log("封面已设置","ok");refresh();
+    }catch(e){log(e.message,"bad")}
+  };
+  inp.click();
 }
 function fmtMB(n){return (n/1048576).toFixed(1)+" MB"}
 async function refresh(){
@@ -119,7 +148,12 @@ async function refresh(){
     const g=$("grid");g.innerHTML="";
     files.forEach((f,i)=>{
       const t=document.createElement("div");t.className="tile"+(f.kind==="video"?" video":"");
-      if(f.kind==="video"){t.innerHTML='<div class="ico">🎬</div><div>'+fmtMB(f.size)+'</div>'}
+      if(f.kind==="video"){
+        if(f.cover){const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb({url:f.cover.url},img);t.classList.remove("video")}
+        else{t.innerHTML='<div class="ico">🎬</div><div>'+fmtMB(f.size)+'</div>'}
+        const c=document.createElement("button");c.className="cv";c.textContent=f.cover?"换封面":"设封面";
+        c.onclick=()=>pickCover(f);t.appendChild(c);
+      }
       else{const img=document.createElement("img");img.alt=f.name;t.appendChild(img);thumb(f,img)}
       const n=document.createElement("span");n.className="n"+(i===0?" next":"");n.textContent=i===0?"下一条":String(i+1);t.appendChild(n);
       const x=document.createElement("button");x.className="x";x.textContent="×";x.setAttribute("aria-label","删除");
@@ -128,6 +162,7 @@ async function refresh(){
         if(!armed){armed=true;x.textContent="确认删除";x.classList.add("confirm");setTimeout(()=>{armed=false;x.textContent="×";x.classList.remove("confirm")},3000);return}
         x.disabled=true;
         try{
+          if(f.kind==="video"&&f.cover){await fetch(f.cover.url,{method:"DELETE",headers:headers()})}
           const r=f.kind==="video"
             ?await fetch(f.url,{method:"DELETE",headers:headers()})
             :await fetch(f.url,{method:"DELETE",headers:headers(),body:JSON.stringify({message:"chore: remove "+f.name,sha:f.sha,branch:BRANCH})});
