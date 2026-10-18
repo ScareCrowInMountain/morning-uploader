@@ -93,7 +93,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 <div class="lb" id="lb" hidden>
   <div class="top"><span id="lb-title"></span><button id="lb-close">关闭</button></div>
   <div class="body" id="lb-body"></div>
-  <div class="foot"><span id="lb-info"></span><span><button class="cv" id="lb-frame" hidden>当前画面做封面</button> <button class="cv" id="lb-cover" hidden>选图做封面</button> <button class="del" id="lb-del">删除这条</button></span></div>
+  <div class="foot"><span id="lb-info"></span><span><button class="cv" id="lb-frame" hidden>抽帧做封面</button> <button class="cv" id="lb-cover" hidden>选图做封面</button> <button class="del" id="lb-del">删除这条</button></span></div>
 </div>
 
 <script>
@@ -295,7 +295,7 @@ async function videoFlow(v){
 }
 
 /* ---------- lightbox ---------- */
-let lbUrl=null,confirmDel=false;
+let lbUrl=null,lbBlob=null,confirmDel=false;
 function closeLightbox(){$("lb").hidden=true;$("lb-body").innerHTML="";if(lbUrl){URL.revokeObjectURL(lbUrl);lbUrl=null};confirmDel=false;$("lb-del").textContent="删除这条"}
 $("lb-close").onclick=closeLightbox;
 async function openLightbox(f,i){
@@ -319,8 +319,9 @@ async function openLightbox(f,i){
         const vid=document.createElement("video");vid.controls=true;vid.playsInline=true;vid.muted=true;vid.autoplay=true;vid.id="lb-video";
         if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
         const direct=`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`;
-        try{const vr=await fetch(direct);if(!vr.ok)throw new Error(vr.status);lbUrl=URL.createObjectURL(await vr.blob());vid.src=lbUrl}
-        catch(e){vid.src=direct;vid.crossOrigin="anonymous"}
+        lbBlob=null;
+        try{const vr=await fetch(direct);if(!vr.ok)throw new Error(vr.status);lbBlob=await vr.blob();lbUrl=URL.createObjectURL(lbBlob);vid.src=lbUrl}
+        catch(e){vid.src=direct}
         $("lb-frame").hidden=false;
         body.innerHTML="";body.appendChild(vid);
       }
@@ -333,13 +334,16 @@ async function openLightbox(f,i){
     catch(e){$("lb-info").textContent=e.message}
   }
   $("lb-cover").onclick=async()=>{const c=await chooseCover();if(c)setCover(c)};
-  $("lb-frame").onclick=()=>{
-    const vid=$("lb-video");if(!vid)return;vid.pause();
-    const w=vid.videoWidth,h=vid.videoHeight;if(!w||!h){$("lb-info").textContent="画面还没出来，稍等再点";return}
-    try{
-      const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(vid,0,0,w,h);
-      c.toBlob(b=>{if(b)setCover(new File([b],"frame.jpg",{type:"image/jpeg"}));else $("lb-info").textContent="抽帧失败，请用「选图做封面」"},"image/jpeg",0.92);
-    }catch(e){$("lb-info").textContent="这个视频不允许抽帧（跨域），请用「选图做封面」"}
+  $("lb-frame").onclick=async()=>{
+    if(!lbBlob){$("lb-info").textContent="这个视频无法在页面内抽帧（超过 20MB 或下载失败），请用「选图做封面」";return}
+    const blob=lbBlob;closeLightbox();
+    const frame=await grabFrame(blob);
+    if(!frame){refresh();return}
+    try{log("上传封面…");const path=await uploadCover(frame,f.name);
+      const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];items.forEach(it=>{if(it.file_id===f.file_id)it.cover=path});
+      await putJson(VQ,{items},vq.sha,"feat: cover for "+f.name);log("封面已更新","ok")}
+    catch(e){log(e.message,"bad")}
+    refresh();
   };
   $("lb-del").onclick=async()=>{
     if(!confirmDel){confirmDel=true;$("lb-del").textContent="再点一次确认删除";setTimeout(()=>{confirmDel=false;$("lb-del").textContent="删除这条"},3000);return}
