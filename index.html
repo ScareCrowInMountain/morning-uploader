@@ -247,14 +247,22 @@ function askCover(v){
     $("cover-cancel").onclick=()=>done(null);
   });
 }
+function probeVideo(file){
+  return new Promise(res=>{const v=document.createElement("video");v.preload="metadata";v.muted=true;v.playsInline=true;const u=URL.createObjectURL(file);
+    v.onloadedmetadata=()=>{const m={width:v.videoWidth,height:v.videoHeight,duration:Math.round(v.duration||0)};URL.revokeObjectURL(u);res(m)};
+    v.onerror=()=>{URL.revokeObjectURL(u);res({})};v.src=u});
+}
 async function tgSendVideo(file,name){
+  const meta=await probeVideo(file);
   const fd=new FormData();fd.append("chat_id",cfg.chat);fd.append("video",file,name);fd.append("caption","📥 早报队列 "+name);fd.append("disable_notification","true");fd.append("supports_streaming","true");
+  if(meta.width&&meta.height){fd.append("width",meta.width);fd.append("height",meta.height)}
+  if(meta.duration)fd.append("duration",meta.duration);
   const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/sendVideo`,{method:"POST",body:fd});
   const j=await r.json().catch(()=>({}));
   if(!r.ok||!j.ok)throw new Error("Telegram 上传失败 "+r.status+"："+(j.description||"")+(r.status===401?"（bot token 错）":r.status===400?"（用户 ID 不对，或你还没给 bot 发过消息）":""));
   const m=j.result;const v=m.video||m.document||m.animation;
   if(!v)throw new Error("Telegram 没有返回视频 file_id");
-  return {file_id:v.file_id,size:v.file_size||file.size,message_id:m.message_id};
+  return {file_id:v.file_id,size:v.file_size||file.size,message_id:m.message_id,width:meta.width||v.width,height:meta.height||v.height,duration:meta.duration||v.duration};
 }
 async function uploadCover(coverFile,name){
   const blob=await resizeTo(coverFile,320,0.8);
@@ -279,7 +287,7 @@ async function videoFlow(v){
     if(ans.cover){log("上传封面…");cover=await uploadCover(ans.cover,name)}
     log("登记到队列…");
     const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];
-    items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id});
+    items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id,width:tg.width,height:tg.height,duration:tg.duration});
     await putJson(VQ,{items},vq.sha,"feat: queue video "+name);
     log(cover?"视频 + 封面已上传":"视频已上传（首帧封面）","ok");
   }catch(e){log(e.message,"bad")}
