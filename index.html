@@ -48,6 +48,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 .lb img,.lb video{max-width:100%;max-height:100%;object-fit:contain}
 .lb .foot{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px));color:#ccc;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .lb .foot .del{background:var(--bad);color:#fff;padding:8px 12px}
+#framer canvas{display:none}
 .lb .foot .cv{background:rgba(255,255,255,.15);color:#fff;padding:8px 12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -73,7 +74,13 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
   <div class="hint">图片自动压缩；视频 ≤ 50MB，先选视频再选封面</div>
   <div class="card" id="coverask" hidden>
     <div id="coverask-text"></div>
-    <div class="row"><button id="cover-yes">选封面图</button><button class="ghost" id="cover-no">不用，用首帧</button><button class="ghost" id="cover-cancel">取消上传</button></div>
+    <div class="row"><button id="cover-frame">从视频抽帧</button><button class="ghost" id="cover-yes">选封面图</button><button class="ghost" id="cover-no">不用，用首帧</button><button class="ghost" id="cover-cancel">取消上传</button></div>
+  </div>
+  <div class="card" id="framer" hidden>
+    <video id="fr-video" muted playsinline preload="auto" style="width:100%;max-height:60vh;border-radius:12px;background:#000"></video>
+    <input type="range" id="fr-range" min="0" max="100" step="0.1" value="0" style="width:100%;margin-top:10px;accent-color:var(--accent)">
+    <div class="hint" id="fr-time">0.0 s</div>
+    <div class="row"><button id="fr-use">用这一帧</button><button class="ghost" id="fr-back">返回</button></div>
   </div>
   <progress id="prog" value="0" max="1" hidden></progress>
   <div id="log"></div>
@@ -208,10 +215,33 @@ $("file").onchange=async e=>{
 
 /* ---------- videos (Telegram file_id) ---------- */
 function chooseCover(){return new Promise(res=>{const inp=$("cfile");inp.value="";inp.onchange=()=>res(inp.files[0]||null);inp.oncancel=()=>res(null);inp.click()})}
+function grabFrame(file){
+  // Let the user scrub the video and capture the current frame as a JPEG blob.
+  return new Promise(res=>{
+    const box=$("framer"),vid=$("fr-video"),rng=$("fr-range"),tm=$("fr-time");
+    const url=URL.createObjectURL(file);vid.src=url;box.hidden=false;
+    let dur=0;
+    const cleanup=val=>{box.hidden=true;vid.pause();vid.removeAttribute("src");vid.load();URL.revokeObjectURL(url);rng.oninput=null;$("fr-use").onclick=null;$("fr-back").onclick=null;res(val)};
+    vid.onloadedmetadata=()=>{dur=vid.duration||0;rng.max=Math.max(0.1,dur).toFixed(1);rng.value=Math.min(1,dur/2).toFixed(1);vid.currentTime=parseFloat(rng.value);tm.textContent=rng.value+" s / "+dur.toFixed(1)+" s"};
+    vid.onerror=()=>{log("浏览器无法解码这个视频，改用选封面图","bad");cleanup(null)};
+    rng.oninput=()=>{vid.currentTime=parseFloat(rng.value);tm.textContent=rng.value+" s / "+dur.toFixed(1)+" s"};
+    $("fr-back").onclick=()=>cleanup(null);
+    $("fr-use").onclick=()=>{
+      try{
+        const c=document.createElement("canvas");const w=vid.videoWidth,h=vid.videoHeight;
+        if(!w||!h)throw new Error("还没解码出画面，稍等再点");
+        c.width=w;c.height=h;c.getContext("2d").drawImage(vid,0,0,w,h);
+        c.toBlob(b=>{if(!b){log("抽帧失败，改用选封面图","bad");cleanup(null)}else cleanup(new File([b],"frame.jpg",{type:"image/jpeg"}))},"image/jpeg",0.92);
+      }catch(e){log(e.message,"bad")}
+    };
+    vid.load();
+  });
+}
 function askCover(v){
   return new Promise(res=>{
-    const box=$("coverask");$("coverask-text").textContent="已选视频 "+fmtMB(v.size)+"。要加封面吗？";box.hidden=false;
-    const done=val=>{box.hidden=true;$("cover-yes").onclick=$("cover-no").onclick=$("cover-cancel").onclick=null;res(val)};
+    const box=$("coverask");$("coverask-text").textContent="已选视频 "+fmtMB(v.size)+"。封面怎么来？";box.hidden=false;
+    const done=val=>{box.hidden=true;$("cover-frame").onclick=$("cover-yes").onclick=$("cover-no").onclick=$("cover-cancel").onclick=null;res(val)};
+    $("cover-frame").onclick=async()=>{box.hidden=true;const f=await grabFrame(v);if(f)done({cover:f});else box.hidden=false};
     $("cover-yes").onclick=async()=>{const c=await chooseCover();done({cover:c})};
     $("cover-no").onclick=()=>done({cover:null});
     $("cover-cancel").onclick=()=>done(null);
