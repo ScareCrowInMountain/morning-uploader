@@ -56,9 +56,10 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
 </section>
 
 <section id="main" hidden>
-  <input type="file" id="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple hidden>
-  <button class="big" id="pick">📷🎬 选择图片 / 视频上传</button>
-  <div class="hint">图片自动压缩；视频原样上传，单个 ≤ 45MB（Telegram 上限）</div>
+  <input type="file" id="file" accept="image/*" multiple hidden>
+  <button class="big" id="pick">📷 选择图片上传</button>
+  <button class="big ghost" id="pickv" style="margin-top:10px">🎬 视频 + 封面</button>
+  <div class="hint">图片自动压缩；视频 ≤ 45MB，先选视频再选封面（可跳过，用首帧）</div>
   <progress id="prog" value="0" max="1" hidden></progress>
   <div id="log"></div>
   <div class="head"><h2>队列</h2><span class="count" id="count"></span></div>
@@ -81,6 +82,7 @@ function show(){const has=!!token;$("auth").hidden=has;$("main").hidden=!has;$("
 $("save").onclick=()=>{const v=$("pat").value.trim();if(!v)return;token=v;try{localStorage.setItem("mb_pat",v)}catch(e){};$("pat").value="";show()};
 $("logout").onclick=$("forget").onclick=()=>{token="";try{localStorage.removeItem("mb_pat")}catch(e){};show()};
 $("pick").onclick=()=>$("file").click();
+$("pickv").onclick=pickVideoWithCover;
 $("reload").onclick=refresh;
 
 const REL=`https://api.github.com/repos/${OWNER}/${REPO}/releases`;
@@ -119,6 +121,41 @@ function resizeTo(file,MAX,q){
       c.toBlob(b=>b?res(b):rej(new Error("压缩失败")),"image/jpeg",q)};
     img.onerror=()=>rej(new Error("无法读取 "+file.name));img.src=url;
   });
+}
+function chooseFile(accept){
+  return new Promise(res=>{const inp=document.createElement("input");inp.type="file";inp.accept=accept;
+    inp.onchange=()=>res(inp.files[0]||null);
+    // iOS fires no event on cancel; a focus-back check settles it
+    const onFocus=()=>{setTimeout(()=>{window.removeEventListener("focus",onFocus);res(inp.files[0]||null)},600)};
+    window.addEventListener("focus",onFocus);inp.click()});
+}
+async function uploadVideo(f,coverFile){
+  if(f.size>45*1048576)throw new Error(f.name+" 超过 45MB，Telegram 发不出去");
+  const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
+  const name=stamp(new Date())+"-00"+ext;
+  const rid=await queueRelease();
+  log("上传视频…");
+  let r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name)}`,
+    {method:"POST",headers:headers({"Content-Type":f.type||"video/mp4"}),body:f});
+  if(!r.ok)throw new Error("视频上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+  if(coverFile){
+    log("上传封面…");
+    const blob=await resizeTo(coverFile,320,0.8);
+    if(blob.size>200*1024)throw new Error("封面超过 200KB");
+    r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name+".cover.jpg")}`,
+      {method:"POST",headers:headers({"Content-Type":"image/jpeg"}),body:blob});
+    if(!r.ok)throw new Error("封面上传失败 "+r.status);
+  }
+}
+async function pickVideoWithCover(){
+  const v=await chooseFile("video/mp4,video/quicktime,video/webm");
+  if(!v)return;
+  log("已选视频 "+fmtMB(v.size)+"，现在选封面（取消 = 用首帧）");
+  const c=await chooseFile("image/*");
+  $("pickv").disabled=true;
+  try{await uploadVideo(v,c);log(c?"视频 + 封面已上传":"视频已上传（首帧封面）","ok")}
+  catch(e){log(e.message,"bad")}
+  $("pickv").disabled=false;refresh();
 }
 function pickCover(video){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
@@ -202,13 +239,7 @@ $("file").onchange=async e=>{
       log(`上传中 ${i+1}/${files.length}…`);
       const isVideo=f.type.startsWith("video/")||VIDEO_RE.test(f.name);
       if(isVideo){
-        if(f.size>45*1048576)throw new Error(f.name+" 超过 45MB，Telegram 发不出去");
-        const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
-        const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+ext;
-        const rid=await queueRelease();
-        const r=await fetch(`https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${rid}/assets?name=${encodeURIComponent(name)}`,
-          {method:"POST",headers:headers({"Content-Type":f.type||"video/mp4"}),body:f});
-        if(!r.ok)throw new Error("视频上传失败 "+r.status+(r.status===401?"（令牌无效）":r.status===403?"（令牌无权限）":""));
+        await uploadVideo(f,null);
       }else{
         const blob=await resize(f);
         const name=stamp(new Date())+"-"+String(i).padStart(2,"0")+".jpg";
