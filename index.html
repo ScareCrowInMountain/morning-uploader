@@ -300,12 +300,21 @@ async function openLightbox(f,i){
     if(f.kind==="image"){lbUrl=await blobOf(f.url);const im=document.createElement("img");im.src=lbUrl;body.innerHTML="";body.appendChild(im)}
     else{
       const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/getFile?file_id=${encodeURIComponent(f.file_id)}`);const j=await r.json();
-      if(!j.ok)throw new Error("取不到视频地址："+(j.description||""));
-      const vr=await fetch(`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`);if(!vr.ok)throw new Error("视频下载失败 "+vr.status);
-      lbUrl=URL.createObjectURL(await vr.blob());
-      const vid=document.createElement("video");vid.src=lbUrl;vid.controls=true;vid.playsInline=true;vid.muted=true;vid.autoplay=true;vid.id="lb-video";
-      if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
-      body.innerHTML="";body.appendChild(vid);$("lb-frame").hidden=false;
+      if(!j.ok){
+        // Bot API only serves files ≤ 20MB; bigger ones can't be previewed here. Show the cover instead.
+        body.innerHTML="";
+        if(f.coverFile){const im=document.createElement("img");im.src=await blobOf(f.coverFile.url);body.appendChild(im)}
+        const note=document.createElement("div");note.style.cssText="position:absolute;left:0;right:0;bottom:90px;text-align:center;color:#ccc;font-size:13px;padding:0 20px";
+        note.textContent=/too big/i.test(j.description||"")?"视频超过 20MB，Telegram 不提供预览；早报发送不受影响":"取不到视频："+(j.description||"");
+        body.appendChild(note);
+      }else{
+        const vid=document.createElement("video");vid.controls=true;vid.playsInline=true;vid.muted=true;vid.autoplay=true;vid.id="lb-video";
+        if(f.coverFile){try{vid.poster=await blobOf(f.coverFile.url)}catch(e){}}
+        const direct=`https://api.telegram.org/file/bot${cfg.bot}/${j.result.file_path}`;
+        try{const vr=await fetch(direct);if(!vr.ok)throw new Error(vr.status);lbUrl=URL.createObjectURL(await vr.blob());vid.src=lbUrl;$("lb-frame").hidden=false}
+        catch(e){vid.src=direct}  // playable, but frames can't be captured cross-origin
+        body.innerHTML="";body.appendChild(vid);
+      }
     }
   }catch(e){body.textContent=e.message}
   async function setCover(c){
