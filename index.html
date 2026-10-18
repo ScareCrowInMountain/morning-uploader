@@ -127,11 +127,15 @@ function resizeTo(file,MAX,q){
   });
 }
 function chooseFile(accept){
-  return new Promise(res=>{const inp=document.createElement("input");inp.type="file";inp.accept=accept;
-    inp.onchange=()=>res(inp.files[0]||null);
-    // iOS fires no event on cancel; a focus-back check settles it
-    const onFocus=()=>{setTimeout(()=>{window.removeEventListener("focus",onFocus);res(inp.files[0]||null)},600)};
-    window.addEventListener("focus",onFocus);inp.click()});
+  // A persistent, hidden input: iOS Safari drops detached inputs before the picker returns.
+  return new Promise(res=>{
+    let inp=$("chooser");
+    if(!inp){inp=document.createElement("input");inp.type="file";inp.id="chooser";inp.hidden=true;document.body.appendChild(inp)}
+    inp.accept=accept;inp.value="";
+    inp.onchange=()=>{const f=inp.files[0]||null;inp.onchange=null;res(f)};
+    inp.oncancel=()=>{inp.onchange=null;res(null)};
+    inp.click();
+  });
 }
 async function uploadVideo(f,coverFile){
   if(f.size>45*1048576)throw new Error(f.name+" 超过 45MB，Telegram 发不出去");
@@ -161,8 +165,9 @@ function askCover(v){
   });
 }
 async function pickVideoWithCover(){
+  log("请选择视频…");
   const v=await chooseFile("video/mp4,video/quicktime,video/webm");
-  if(!v)return;
+  if(!v){log("没有选中视频");return}
   const ans=await askCover(v);
   if(!ans){log("已取消");return}
   $("pickv").disabled=true;
@@ -243,7 +248,7 @@ function toB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.o
 function stamp(d){const p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+"-"+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())}
 
 $("file").onchange=async e=>{
-  const files=[...e.target.files];e.target.value="";if(!files.length)return;
+  const files=[...e.target.files];e.target.value="";if(!files.length){log("没有选中文件");return}
   $("pick").disabled=true;const prog=$("prog");prog.hidden=false;prog.max=files.length;prog.value=0;
   let ok=0;
   for(let i=0;i<files.length;i++){
