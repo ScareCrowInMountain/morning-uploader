@@ -269,9 +269,16 @@ async function tgSendVideo(file,name){
   const fd=new FormData();fd.append("chat_id",cfg.chat);fd.append("video",file,name);fd.append("caption","📥 早报队列 "+name);fd.append("disable_notification","true");fd.append("supports_streaming","true");
   if(meta.width&&meta.height){fd.append("width",meta.width);fd.append("height",meta.height)}
   if(meta.duration)fd.append("duration",meta.duration);
-  const r=await fetch(`https://api.telegram.org/bot${cfg.bot}/sendVideo`,{method:"POST",body:fd});
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok||!j.ok)throw new Error("Telegram 上传失败 "+r.status+"："+(j.description||"")+(r.status===401?"（bot token 错）":r.status===400?"（用户 ID 不对，或你还没给 bot 发过消息）":""));
+  let r=null,j={},lastErr=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      log(`上传视频到 Telegram…（${fmtMB(file.size)}，第 ${attempt} 次）`);
+      r=await fetch(`https://api.telegram.org/bot${cfg.bot}/sendVideo`,{method:"POST",body:fd});
+      j=await r.json().catch(()=>({}));lastErr=null;break;
+    }catch(e){lastErr=e;await new Promise(x=>setTimeout(x,1500))}
+  }
+  if(lastErr)throw new Error("连接 Telegram 失败（"+lastErr.message+"）。换个网络或稍后再试；文件 "+fmtMB(file.size));
+  if(!r.ok||!j.ok)throw new Error("Telegram 上传失败 "+r.status+"："+(j.description||"")+(r.status===401?"（bot token 错）":r.status===400?"（用户 ID 不对，或你还没给 bot 发过消息）":r.status===413?"（文件超过 50MB）":""));
   const m=j.result;const v=m.video||m.document||m.animation;
   if(!v)throw new Error("Telegram 没有返回视频 file_id");
   return {file_id:v.file_id,size:v.file_size||file.size,message_id:m.message_id,width:meta.width||v.width,height:meta.height||v.height,duration:meta.duration||v.duration};
@@ -333,14 +340,17 @@ async function videoFlow(v){
   try{
     const ext=(v.name.match(/\.(mp4|mov|m4v|webm)$/i)||[".mp4"])[0].toLowerCase();
     const name=stamp(new Date())+"-00"+ext;
-    log("上传视频到 Telegram…（"+fmtMB(v.size)+"）");
     const tg=await tgSendVideo(v,name);
     let cover=null;
-    if(ans.cover){log("上传封面…");cover=await uploadCover(ans.cover,name)}
+    if(ans.cover){log("上传封面…");try{cover=await uploadCover(ans.cover,name)}catch(e){throw new Error("封面步骤："+e.message)}}
     log("登记到队列…");
     const vq=await getJson(VQ);const items=(vq.data&&vq.data.items)||[];
     items.push({name,file_id:tg.file_id,size:tg.size,cover,message_id:tg.message_id,width:tg.width,height:tg.height,duration:tg.duration,feed:feed||null});
-    await putJson(VQ,{items},vq.sha,"feat: queue video "+name);
+    try{await putJson(VQ,{items},vq.sha,"feat: queue video "+name)}
+    catch(e){ // the morning job may have just committed the queue; re-read once and retry
+      const vq2=await getJson(VQ);const items2=(vq2.data&&vq2.data.items)||[];items2.push(items[items.length-1]);
+      await putJson(VQ,{items:items2},vq2.sha,"feat: queue video "+name);
+    }
     log((cover?"视频 + 封面已上传":"视频已上传（首帧封面）")+(feed?"，含预览版设置":""),"ok");
   }catch(e){log(e.message,"bad")}
   $("pickv").disabled=false;refresh();
