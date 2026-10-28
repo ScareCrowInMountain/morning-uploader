@@ -80,7 +80,7 @@ progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
   </div>
   <div class="card" id="feeded" hidden>
     <div style="font-weight:500">预览版：选区域和起点（最长 8 秒）</div>
-    <div class="row" style="margin-top:8px"><button class="ghost" id="fe-45">4:5</button><button class="ghost" id="fe-11">1:1</button><span class="hint" style="align-self:center">拖动框选位置</span></div>
+    <div class="row" style="margin-top:8px"><button class="ghost" id="fe-11">1:1</button><button class="ghost" id="fe-45">4:5</button><span class="hint" style="align-self:center">拖动框选位置</span></div>
     <div id="fe-wrap" style="position:relative;margin-top:10px;border-radius:12px;overflow:hidden;background:#000;touch-action:none;user-select:none">
       <video id="fe-video" muted playsinline loop preload="auto" style="width:100%;display:block"></video>
       <div id="fe-shade" style="position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:none;clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 0)"></div>
@@ -317,7 +317,7 @@ function feedEditor(file){
     }
     function seg(){const start=parseFloat(rng.value)||0;const len=Math.max(0.5,Math.min(8,dur-start));tm.textContent=`起点 ${start.toFixed(1)} s · 预览 ${len.toFixed(1)} s · 共 ${dur.toFixed(1)} s`;return {start,len}}
     function restart(){const {start,len}=seg();vid.currentTime=start;vid.play().catch(()=>{});clearInterval(loopTimer);loopTimer=setInterval(()=>{if(vid.currentTime>=start+len||vid.currentTime<start-0.2)vid.currentTime=start},200)}
-    vid.onloadedmetadata=()=>{vw=vid.videoWidth;vh=vid.videoHeight;dur=vid.duration||0;rng.max=Math.max(0,dur-0.5).toFixed(1);rng.value="0";requestAnimationFrame(()=>{layout();restart()})};
+    vid.onloadedmetadata=()=>{vw=vid.videoWidth;vh=vid.videoHeight;dur=vid.duration||0;rng.max=Math.max(0,dur-0.5).toFixed(1);rng.value="0";requestAnimationFrame(()=>{layout();pos=Math.round(((bw===dw?dh-bh:dw-bw))/2);layout();restart()})};
     vid.onerror=()=>{log("浏览器无法解码这个视频，预览版跳过","bad");cleanup(null)};
     rng.oninput=restart;
     let dragging=false,startP=0,startPos=0;
@@ -334,7 +334,7 @@ function feedEditor(file){
     };
     $("fe-skip").onclick=()=>cleanup(null);
     $("fe-cancel").onclick=()=>cleanup(false);
-    setAspect([4,5]);vid.load();
+    setAspect([1,1]);vid.load();
   });
 }
 async function videoFlow(v){
